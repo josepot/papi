@@ -6,6 +6,8 @@ import {
 import { getMetadata } from "./getMetadata"
 
 const metadata = await getMetadata()
+console.log(JSON.stringify(metadata, null, 2))
+process.exit(0)
 
 if (metadata.metadata.tag !== "v14") throw new Error("wrong metadata version")
 

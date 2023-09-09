@@ -1,5 +1,3 @@
-import { WellKnownChain } from "@substrate/connect"
-import { ScProvider } from "@unstoppablejs/sc-provider"
 import { createClient } from "@unstoppablejs/substrate-client"
 import {
   compact,
@@ -8,8 +6,61 @@ import {
   Tuple,
 } from "@unstoppablejs/substrate-bindings"
 
+import {
+  Chain,
+  WellKnownChain,
+  createScClient,
+  Config,
+  ScClient,
+} from "@substrate/connect"
+import { ProviderStatus } from "@unstoppablejs/provider"
+import collectivesSpec from "./collectives-polkadot"
+import collectivesPolkadot from "./collectives-polkadot"
+
+const wellKnownChains = new Set(Object.values(WellKnownChain))
+
+let client: ScClient
+export const ScProvider = (
+  input: WellKnownChain | string,
+  config?: Config,
+): GetProvider => {
+  // Share the same client, if not adding Westmint throws AddChainError: Couldn't find relevant relay chain
+  client ??= createScClient(config)
+
+  return (onMessage, onStatus): Provider => {
+    let chain: Chain
+
+    const open = () => {
+      ;(wellKnownChains.has(input as any)
+        ? client.addWellKnownChain(input as WellKnownChain, onMessage)
+        : client.addChain(input, onMessage)
+      ).then((_chain) => {
+        chain = _chain
+        onStatus(ProviderStatus.ready)
+      })
+    }
+
+    const close = () => {
+      chain?.remove()
+    }
+
+    const send = (msg: string) => {
+      chain.sendJsonRpc(msg)
+    }
+
+    return { open, close, send }
+  }
+}
+
+ScProvider(WellKnownChain.polkadot)(
+  Function.prototype as any,
+  Function.prototype as any,
+).open()
+
+await new Promise((res) => setTimeout(res, 500))
+
 const smProvider = ScProvider(
-  WellKnownChain.polkadot /*, {
+  collectivesPolkadot /*, {
   embeddedNodeConfig: {
     maxLogLevel: 9,
   },
@@ -20,11 +71,6 @@ export interface Provider {
   send: (message: string) => void
   open: () => void
   close: () => void
-}
-export declare enum ProviderStatus {
-  ready = 0,
-  disconnected = 1,
-  halt = 2,
 }
 
 export declare type GetProvider = (
@@ -55,7 +101,7 @@ const withLogsProvider = (input: GetProvider): GetProvider => {
   }
 }
 
-export const { chainHead } = createClient(withLogsProvider(smProvider))
+export const { chainHead } = createClient(smProvider)
 
 type Metadata = CodecType<typeof metadata>
 
